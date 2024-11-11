@@ -1,123 +1,165 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
+import { useNavigate } from 'react-router-dom';
+import './Dashboard.css';
 
 function Dashboard() {
-  const [users, setUsers] = useState([]);
-  const [newUser, setNewUser] = useState({
-    username: '',
-    siteName: '',
-    password: ''
-  });
-  const [showPassword, setShowPassword] = useState(false);
+  const navigate = useNavigate();
+  const [passwords, setPasswords] = useState([]);
+  const [newPassword, setNewPassword] = useState({ website: '', username: '', password: '' });
+  const [editPassword, setEditPassword] = useState(null);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showPasswords, setShowPasswords] = useState({});
 
- 
-  const phoneNumber = 'userPhoneNumber'; // Replace with the actual phone number of the logged-in user
-
-  // Fetch users from the backend
+  // Fetch passwords from the server
   useEffect(() => {
-    axios.get(`http://localhost:5000/get-data/${phoneNumber}`)
-      .then(response => {
-        setUsers(response.data.dashboard);
-      })
-      .catch(error => {
-        console.log(error);
-      });
-  }, [phoneNumber]);
+    axios.get('http://localhost:5001/api/passwords')
+      .then(response => setPasswords(response.data))
+      .catch(error => console.log(error));
+  }, []);
 
-  // Password generation function
+  // Generate a random password
   const generatePassword = () => {
-    const length = 12;
-    const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()";
-    let password = "";
-    for (let i = 0, n = charset.length; i < length; ++i) {
-      password += charset.charAt(Math.floor(Math.random() * n));
+    const charset = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789!@#$%^&*()_+~';
+    let password = '';
+    for (let i = 0; i < 12; i++) {
+      const randomIndex = Math.floor(Math.random() * charset.length);
+      password += charset[randomIndex];
     }
-    setNewUser({ ...newUser, password });
+    setNewPassword({ ...newPassword, password });
   };
 
-  // Toggle password visibility
-  const togglePasswordVisibility = () => {
-    setShowPassword(!showPassword);
+  // Toggle visibility for new password input
+  const toggleNewPasswordVisibility = () => {
+    setShowNewPassword(!showNewPassword);
   };
 
-  // Create a new user entry
-  const handleCreateUser = async () => {
-    try {
-      await axios.post('http://localhost:5000/add-data', {
-        ...newUser,
-        phoneNumber,
-      });
-      setNewUser({ username: '', siteName: '', password: '' });
-      const response = await axios.get(`http://localhost:5000/get-data/${phoneNumber}`);
-      setUsers(response.data.dashboard);
-    } catch (error) {
-      console.log(error);
-    }
+  // Toggle saved password visibility for a given ID
+  const togglePasswordVisibility = (id) => {
+    setShowPasswords(prevState => ({
+      ...prevState,
+      [id]: !prevState[id]
+    }));
   };
 
-  
+  // Handle input changes for new password creation
+  const handleChange = (e) => {
+    setNewPassword({ ...newPassword, [e.target.name]: e.target.value });
+  };
 
- 
+  // Create a new password
+  const handleCreate = () => {
+    axios.post('http://localhost:5001/api/passwords', newPassword)
+      .then(response => setPasswords([...passwords, response.data]))
+      .catch(error => console.log(error));
+    setNewPassword({ website: '', username: '', password: '' }); // Reset form
+  };
+
+  // Delete password by ID
+  const handleDelete = (id) => {
+    axios.delete(`http://localhost:5001/api/passwords/${id}`)
+      .then(() => setPasswords(passwords.filter(p => p._id !== id)))
+      .catch(error => console.log(error));
+  };
+
+  // Set a password for editing
+  const handleEdit = (id) => {
+    const password = passwords.find(p => p._id === id);
+    setEditPassword(password);
+  };
+
+  // Update password
+  const handleUpdate = () => {
+    axios.put(`http://localhost:5001/api/passwords/${editPassword._id}`, editPassword)
+      .then(response => {
+        setPasswords(passwords.map(p => p._id === response.data._id ? response.data : p));
+        setEditPassword(null);
+      })
+      .catch(error => console.log(error));
+  };
+
+  const goToAccountManagement = () => {
+    navigate('/account-management');
+  };
+
   return (
     <div>
-      <h2>Dashboard</h2>
+      <h1>Password Manager</h1>
+      <button onClick={goToAccountManagement} className="profile-button">Profile</button>
 
-      {/* User creation form */}
       <div>
-        <h3>save a password!</h3>
-        <input
-          type="text"
-          placeholder="Username"
-          value={newUser.username}
-          onChange={(e) => setNewUser({ ...newUser, username: e.target.value })}
+        <h2>Add New Password</h2>
+        <input 
+          type="text" 
+          name="website" 
+          placeholder="Website" 
+          value={newPassword.website} 
+          onChange={handleChange} 
         />
-        <input
-          type="text"
-          placeholder="Site Name"
-          value={newUser.siteName}
-          onChange={(e) => setNewUser({ ...newUser, siteName: e.target.value })}
+        <input 
+          type="text" 
+          name="username" 
+          placeholder="Username" 
+          value={newPassword.username} 
+          onChange={handleChange} 
         />
-
-        {/* Password field with eye icon button */}
-        <div style={{ position: 'relative', display: 'inline-block' }}>
-          <input
-            type={showPassword ? 'text' : 'password'}
-            placeholder="Password"
-            value={newUser.password}
-            onChange={(e) => setNewUser({ ...newUser, password: e.target.value })}
+        <div className="password-input">
+          <input 
+            type={showNewPassword ? "text" : "password"}
+            name="password" 
+            placeholder="Password" 
+            value={newPassword.password} 
+            onChange={handleChange} 
           />
-          <button 
-            onClick={togglePasswordVisibility} 
-            style={{
-              position: 'absolute',
-              right: 0,
-              top: 0,
-              height: '100%',
-              background: 'none',
-              border: 'none',
-              cursor: 'pointer'
-            }}
-          >
-            {showPassword ? '🙈' : '👁️'}
+          <button onClick={toggleNewPasswordVisibility} className="eye-button">
+            {showNewPassword ? '👁' : '🙈'}
           </button>
+          <button onClick={generatePassword} className="generate-button">Generate Password</button>
         </div>
-
-        <button onClick={generatePassword}>Generate Strong Password</button>
-        <button onClick={handleCreateUser}>Save</button>
+        <button onClick={handleCreate}>Add Password</button>
       </div>
 
-      {/* Display list of users */}
-      <div>
-        <h3>User List</h3>
-        {users.map((user) => (
-          <div key={user._id}>
-            <p>{user.username} - {user.siteName} - {user.siteName}</p>
-          </div>
+      {editPassword && (
+        <div>
+          <h2>Edit Password</h2>
+          <input 
+            type="text" 
+            name="website" 
+            value={editPassword.website} 
+            onChange={(e) => setEditPassword({ ...editPassword, website: e.target.value })} 
+          />
+          <input 
+            type="text" 
+            name="username" 
+            value={editPassword.username} 
+            onChange={(e) => setEditPassword({ ...editPassword, username: e.target.value })} 
+          />
+          <input 
+            type="password" 
+            name="password" 
+            value={editPassword.password} 
+            onChange={(e) => setEditPassword({ ...editPassword, password: e.target.value })} 
+          />
+          <button onClick={handleUpdate}>Update Password</button>
+        </div>
+      )}
+
+      <h2>Your Saved Passwords</h2>
+      <ul>
+        {passwords.map((password) => (
+          <li key={password._id}>
+            <strong>{password.website}</strong>: {password.username} 
+            <span>
+              {showPasswords[password._id] ? password.password : '••••••••'}
+              <button onClick={() => togglePasswordVisibility(password._id)} className="eye-button">
+                {showPasswords[password._id] ? '👁' : '🙈'}
+              </button>
+            </span>
+            <button onClick={() => handleDelete(password._id)}>Delete</button>
+            <button onClick={() => handleEdit(password._id)}>Edit</button>
+          </li>
         ))}
-      </div>
-
-      {/* New buttons to trigger saveLocation and verifyOTP */}
-      
+      </ul>
     </div>
   );
 }
