@@ -3,11 +3,9 @@ const twilio = require('twilio');
 const bodyParser = require('body-parser');
 const cors = require('cors');
 const mongoose = require('mongoose');
-const bcrypt = require('bcrypt'); // To hash and compare passwords
-
+const bcrypt = require('bcrypt'); 
 const app = express();
 
-// Middleware setup
 app.use(cors());
 app.use(bodyParser.json());
 
@@ -28,10 +26,14 @@ mongoose.connect(mongoURI, { useNewUrlParser: true, useUnifiedTopology: true })
     process.exit(1);
   });
 
-// User schema with phone number and hashed password
+// User schema with phone number, hashed password, and location
 const userSchema = new mongoose.Schema({
   phoneNumber: String,
   password: String,  // Store hashed password
+  location: {
+    latitude: Number,
+    longitude: Number,
+  },
 });
 
 const User = mongoose.model('User', userSchema);
@@ -58,7 +60,7 @@ app.post('/send-otp', async (req, res) => {
 
 // Route to verify OTP and create account or login
 app.post('/verify-otp', async (req, res) => {
-  const { phoneNumber, otp, password } = req.body;
+  const { phoneNumber, otp, password, latitude, longitude } = req.body;
 
   try {
     const verificationCheck = await client.verify.v2.services(serviceSid)
@@ -76,17 +78,24 @@ app.post('/verify-otp', async (req, res) => {
         const hashedPassword = await bcrypt.hash(password, 10);  // Hash password before saving
         user = new User({
           phoneNumber: sanitizedPhoneNumber,
-          password: hashedPassword
+          password: hashedPassword,
+          location: { latitude, longitude },  // Store location on account creation
         });
         await user.save();
         return res.json({ success: true, message: 'Account created successfully!' });
       } else {
         // User exists, check password
         const isMatch = await bcrypt.compare(password, user.password);
+        
         if (isMatch) {
           return res.json({ success: true, message: 'Login successful!' });
         } else {
-          return res.status(400).json({ success: false, message: 'Invalid password' });
+          // Password is incorrect, now check location
+          if (user.location.latitude === latitude && user.location.longitude === longitude) {
+            return res.json({ success: true, message: 'Location verified, but password is incorrect' });
+          } else {
+            return res.status(400).json({ success: false, message: 'Invalid password and location' });
+          }
         }
       }
     } else {

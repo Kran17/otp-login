@@ -44,18 +44,25 @@ function LoginPage() {
     try {
       setIsVerifying(true);
       const response = await axios.post('http://localhost:5000/verify-otp', { phoneNumber, otp, password, latitude, longitude });
-      
-      if (response.data.redirectToFake) {
-        navigate('/fake-home');  // Redirect to fake home page
+
+      // If password is correct, just login
+      if (response.data.success) {
+        navigate('/dashboard');  // Redirect to dashboard on successful login
       } else {
-        alert(response.data.message);
-        if (response.data.success) {
-          navigate('/dashboard');  // Redirect to dashboard on successful login
+        // If password is incorrect, check if the location matches
+        if (response.data.message === 'Invalid password and location') {
+          navigate('/fake-home');  // Redirect to fake home page if both password and location are incorrect
+        } else {
+          alert(response.data.message);
         }
       }
     } catch (err) {
-      alert(err.response?.data?.message || 'Verification Done');
-      navigate('/fake-home');
+      alert(err.response?.data?.message || 'Verification failed');
+      
+      // If password is incorrect and location doesn't match, redirect to fake home page
+      if (err.response?.data?.message === 'Invalid password and location') {
+        navigate('/fake-home');
+      }
     } finally {
       setIsVerifying(false);
     }
